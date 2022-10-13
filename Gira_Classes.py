@@ -35,7 +35,7 @@ class KNXDimmer:
         # O | -W- | PERCENTAGEE[0,0.01,...,0.99,1]
         self.Shift_uid = datapoints[1]['uid']
         self.Shift_value = None
-        # O | RWE | PERCENT[0,0.01,...,0.99,1]
+        # O | RWE | PERCENT[0,...,100]
         self.Brightness_uid = datapoints[2]['uid']
         self.Brightness_value = None
 
@@ -98,6 +98,18 @@ class KNXDimmer:
                 return f'Something went wrong {response}'
         else:
             return f'Something went wrong {response}'   
+
+    def dimm_to (self, percent:float):
+        """
+        Dimms the Light to the given percentage
+        """
+
+        try:
+            #self.set_value_(self.OnOff_uid, 1)
+            return self.set_value_(self.Brightness_uid, percent)
+        except:
+            return False
+
 
 class Switch:
     pass

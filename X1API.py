@@ -214,7 +214,18 @@ class GiraControl:
         """
         This method returns a list of all devices as their own objects
         """
-        pass
+
+        #first let's get the uid Configuration
+        if self.uid_config == None:
+            self.get_uid_config()
+
+        functions = self.uid_config['functions']
+        channeltypes = []
+        for config in functions:
+            channeltypes.append(config['functionType'])
+
+        for type in sorted(channeltypes):
+            print(type)
 
     def get_device (self, displayName:str = None, uid:str = None)-> Gira_Classes.Any:
         """
