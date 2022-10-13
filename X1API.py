@@ -1,6 +1,6 @@
 import requests
 import json
-
+import Gira_Classes
 
 
 
@@ -28,6 +28,7 @@ class GiraControl:
         self.client_id = client_id
         self.uid = None
         self.uid_config = None
+        self.device_list = []
 
     def availability_check (self) -> bool:
         """
@@ -215,3 +216,36 @@ class GiraControl:
         """
         pass
 
+    def get_device (self, displayName:str = None, uid:str = None)-> Gira_Classes.Any:
+        """
+        returns the device with the DisplayName or the uid - only must be given
+        uid > Displayname
+        """
+        #Value Checking
+        if displayName == None and uid == None:
+            raise ValueError('No values are given')
+        
+        if type(displayName) != str:
+            raise ValueError(f'DisplayName has to be of type string but is {type(displayName)}')
+
+        if type(uid) != str:
+            raise ValueError(f'uid has to be of type string but is {type(uid)}')
+
+        #catching the devices if it hasen't been done yet
+        if self.device_list == []:
+            self.get_devices()
+
+        if displayName != None and uid != None:
+            for device in self.device_list:
+                if device.uid == uid:
+                    return device
+        elif displayName == None and uid != None:
+            for device in self.device_list:
+                if device.uid == uid:
+                    return device
+        elif displayName != None and uid == None:
+            for device in self.device_list:
+                if device.displayName == displayName:
+                    return device
+
+        
