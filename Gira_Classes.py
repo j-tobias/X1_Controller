@@ -12,6 +12,7 @@ class KNXDimmer:
         """
         This is a KNX Dimmer
         """
+        requests.packages.urllib3.disable_warnings()
         #Important values for PUT,GET,POST,...
         self.ip = ip
         self.token = token
@@ -19,7 +20,7 @@ class KNXDimmer:
         #Values Defining the Dimmer in the Network
         self.channelType = "de.gira.schema.channels.KNX.Dimmer"
         self.displayName = config['displayName']
-        self.functionType = config['de.gira.schema.functions.KNX.Light']
+        self.functionType = config['functionType']
         self.uid = config['uid']
 
         datapoints = config['dataPoints']
@@ -51,7 +52,7 @@ class KNXDimmer:
             flag = False
         
         if flag:
-            if str(response).endswith('[200]>)'):
+            if str(response).endswith('[200]>'):
                 values = response.json()['values']
                 self.OnOff_value = values[0]['value']
                 self.Shift_value = values[1]['value']
@@ -67,10 +68,12 @@ class KNXDimmer:
         toggles the OnOff
         """
         if self.update_values() == True:
-            if self.OnOff_value == 1:
-                return self.set_value_(self.OnOff_uid,0)
+            if self.OnOff_value == '1':
+                flag = self.set_value_(self.OnOff_uid,0)
+                return flag
             else:
-                return self.set_value_(self.OnOff_uid,1)
+                flag = self.set_value_(self.OnOff_uid,1)
+                return flag
         else:
             return f'Values could not be updated'
 
@@ -89,7 +92,7 @@ class KNXDimmer:
             flag = False
 
         if flag:
-            if str(response).endswith('[200]>)'):
+            if str(response).endswith('[200]>'):
                 return f'Everything went right'
             else:
                 return f'Something went wrong {response}'
