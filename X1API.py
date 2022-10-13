@@ -1,5 +1,7 @@
 import requests
 import json
+
+from zmq import device
 import Gira_Classes
 
 
@@ -214,18 +216,45 @@ class GiraControl:
         """
         This method returns a list of all devices as their own objects
         """
+        devices_list = []
 
         #first let's get the uid Configuration
         if self.uid_config == None:
             self.get_uid_config()
 
         functions = self.uid_config['functions']
-        channeltypes = []
         for config in functions:
-            channeltypes.append(config['functionType'])
+            
+            #sorting all the Devices into their own Classes
 
-        for type in sorted(channeltypes):
-            print(type)
+            if config['channelType'] == "de.gira.schema.channels.KNX.Dimmer":
+                devices_list.append(Gira_Classes.KNXDimmer(ip= self.ip, token=self.token, config=config))
+            elif config['channelType'] == "de.gira.schema.channels.Sonos.Audio":
+                pass
+            elif config['channelType'] == "de.gira.schema.channels.Trigger":
+                pass
+            elif config['channelType'] == "de.gira.schema.channels.RA.RemoteAccess":
+                pass
+            elif config['channelType'] == "de.gira.schema.channels.Float":
+                pass
+            elif config['channelType'] == "de.gira.schema.channels.Binary":
+                pass
+            elif config['channelType'] == "de.gira.schema.channels.Switch":
+                pass
+            elif config['channelType'] == "de.gira.schema.channels.BlindWithPos":
+                pass
+            elif config['channelType'] == "de.gira.schema.channels.Switch":
+                pass
+            elif config['channelType'] == "de.gira.schema.channels.FunctionScene":
+                pass
+            elif config['channelType'] == "de.gira.schema.channels.String":
+                pass
+
+        #updating the global variable
+        self.device_list = devices_list
+        return devices_list
+
+        
 
     def get_device (self, displayName:str = None, uid:str = None)-> Gira_Classes.Any:
         """
@@ -258,5 +287,3 @@ class GiraControl:
             for device in self.device_list:
                 if device.displayName == displayName:
                     return device
-
-        
