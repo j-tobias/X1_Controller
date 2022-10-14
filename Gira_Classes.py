@@ -110,7 +110,6 @@ class KNXDimmer:
         except:
             return False
 
-
 class Switch:
     pass
 
