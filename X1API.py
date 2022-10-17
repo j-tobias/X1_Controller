@@ -256,7 +256,7 @@ class GiraControl:
 
         
 
-    def get_device (self, displayName:str = None, uid:str = None)-> Gira_Classes.Any:
+    def get_device (self, displayName:str = None, uid:str = None)-> Gira_Classes.KNXDimmer:
         """
         returns the device with the DisplayName or the uid - only must be given
         uid > Displayname
@@ -265,10 +265,10 @@ class GiraControl:
         if displayName == None and uid == None:
             raise ValueError('No values are given')
         
-        if type(displayName) != str:
+        if type(displayName) != str and displayName != None:
             raise ValueError(f'DisplayName has to be of type string but is {type(displayName)}')
 
-        if type(uid) != str:
+        if type(uid) != str and uid != None:
             raise ValueError(f'uid has to be of type string but is {type(uid)}')
 
         #catching the devices if it hasen't been done yet
