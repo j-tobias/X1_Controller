@@ -252,8 +252,6 @@ class GiraControl:
         self.device_list = devices_list
         return devices_list
 
-        
-
     def get_device (self, displayName:str = None, uid:str = None)-> Gira_Classes.KNXDimmer:
         """
         returns the device with the DisplayName or the uid - only must be given
