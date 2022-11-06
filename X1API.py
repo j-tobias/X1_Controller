@@ -239,12 +239,10 @@ class GiraControl:
                 pass
             elif config['channelType'] == "de.gira.schema.channels.Binary":
                 pass
-            elif config['channelType'] == "de.gira.schema.channels.Switch":
-                pass
             elif config['channelType'] == "de.gira.schema.channels.BlindWithPos":
                 pass
             elif config['channelType'] == "de.gira.schema.channels.Switch":
-                pass
+                devices_list.append(Gira_Classes.Switch(ip= self.ip, token=self.token, config=config))
             elif config['channelType'] == "de.gira.schema.channels.FunctionScene":
                 pass
             elif config['channelType'] == "de.gira.schema.channels.String":

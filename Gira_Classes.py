@@ -114,7 +114,7 @@ class Switch:
 
     def __init__ (self, ip, token, config):
         """
-        This is a KNX Dimmer
+        This is a KNX Switch
         """
         requests.packages.urllib3.disable_warnings()
         #Important values for PUT,GET,POST,...
@@ -175,7 +175,7 @@ class Switch:
 
     def update_values (self):
         """
-        This method updates the Dimmer values to the current status
+        This method updates the Switch values to the current status
         """
         try:
             url = f'https://{self.ip}/api/values/{self.uid}?token={self.token}'
