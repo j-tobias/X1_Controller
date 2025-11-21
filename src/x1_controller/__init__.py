@@ -19,14 +19,42 @@ from .api import (
     GiraControllerError,
 )
 from .devices import (
-    BlindWithPos,
+    # Base class and factory
     GiraDevice,
+    create_device,
+    # Lighting devices
     KNXDimmer,
     Switch,
-    create_device,
+    DimmerRGBW,
+    DimmerWhite,
+    # Blinds/Shutter
+    BlindWithPos,
+    # Triggers and Scenes
+    Trigger,
+    SceneSet,
+    SceneControl,
+    # Climate control
+    RoomTemperatureSwitchable,
+    KNXHeatingCoolingSwitchable,
+    KNXFanCoil,
+    # Audio
+    AudioWithPlaylist,
+    SonosAudio,
+    # Media
+    Camera,
+    Link,
+    # Value types
+    Binary,
+    DWord,
+    Integer,
+    Float,
+    String,
+    Byte,
+    Percent,
+    Temperature,
 )
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     # Main API
@@ -35,11 +63,38 @@ __all__ = [
     "GiraControllerError",
     "AuthenticationError",
     "ConnectionError",
-    # Device classes
+    # Base class
     "GiraDevice",
+    # Lighting devices
     "KNXDimmer",
     "Switch",
+    "DimmerRGBW",
+    "DimmerWhite",
+    # Blinds/Shutter
     "BlindWithPos",
+    # Triggers and Scenes
+    "Trigger",
+    "SceneSet",
+    "SceneControl",
+    # Climate control
+    "RoomTemperatureSwitchable",
+    "KNXHeatingCoolingSwitchable",
+    "KNXFanCoil",
+    # Audio
+    "AudioWithPlaylist",
+    "SonosAudio",
+    # Media
+    "Camera",
+    "Link",
+    # Value types
+    "Binary",
+    "DWord",
+    "Integer",
+    "Float",
+    "String",
+    "Byte",
+    "Percent",
+    "Temperature",
     # Factory
     "create_device",
     # Version
