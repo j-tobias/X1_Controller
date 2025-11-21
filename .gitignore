@@ -1,8 +1,65 @@
+# Test files
 test.py
 test.ipynb
-uid_config.json
-__pycache__/X1API.cpython-310.pyc
-__pycache__/Gira_Classes.cpython-310.pyc
-.ipynb_checkpoints/test-jvsc-98038d6f-aa55-4d68-b3c9-553a0f33cdde2c5c4102-48b3-4f26-bfad-3bbbb933694e-checkpoint.ipynb
-.gitignore
 
+# Config files with sensitive data
+uid_config.json
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# uv
+.uv/
+uv.lock
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# mypy
+.mypy_cache/
+
+# pytest
+.pytest_cache/
+
+# ruff
+.ruff_cache/
+
+# Coverage
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
