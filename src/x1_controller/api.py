@@ -24,7 +24,6 @@ class GiraControllerError(Exception):
 
 class AuthenticationError(GiraControllerError):
     """Raised when authentication fails."""
-
     pass
 
 
@@ -133,7 +132,7 @@ class GiraController:
                 data=body,
             )
 
-            if response.status_code == 200:
+            if response.status_code in [200, 201]:
                 self.token = response.json()["token"]
                 return self.token
             elif response.status_code == 401:

@@ -20,7 +20,9 @@ classifiers = [
 ]
 
 dependencies = [
+    "ipykernel>=7.1.0",
     "requests>=2.31.0",
+    "requests-oauthlib>=2.0.0",
 ]
 
 [project.optional-dependencies]
