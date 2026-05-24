@@ -4,11 +4,17 @@ This module contains classes representing different types of KNX devices
 that can be controlled through the Gira X1 API.
 """
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import requests
+from .enums import FanCoilMode, HeatCoolMode, HVACMode, OnOff
+from .errors import GiraConnectionError, GiraControllerError
+
+if TYPE_CHECKING:
+    from .client import GiraClient
 
 
 @dataclass
@@ -27,35 +33,20 @@ class GiraDevice(ABC):
 
     def __init__(
         self,
-        ip: str,
-        token: str,
+        client: GiraClient,
         config: dict[str, Any],
-        session: requests.Session | None = None,
-        timeout: float = 10.0,
     ) -> None:
         """Initialize a Gira device.
 
         Args:
-            ip: IP address of the Gira X1 controller.
-            token: Authentication token for API access.
+            client: Shared GiraClient for all HTTP calls.
             config: Device configuration dictionary from the X1.
-            session: Shared requests Session (inherits verify and token params).
-            timeout: Request timeout in seconds.
         """
-        self.ip = ip
-        self.token = token
+        self._client = client
         self.display_name = config["displayName"]
         self.function_type = config["functionType"]
         self.uid = config["uid"]
         self._datapoints: dict[str, DataPoint] = {}
-        self._timeout = timeout
-
-        if session is not None:
-            self._session = session
-        else:
-            self._session = requests.Session()
-            self._session.verify = False
-            self._session.params = {"token": token}
 
         self._parse_datapoints(config.get("dataPoints", []))
 
@@ -93,15 +84,6 @@ class GiraDevice(ABC):
         """
         return name in self._datapoints
 
-    def _api_request(
-        self,
-        method: str,
-        endpoint: str,
-        **kwargs: Any,
-    ) -> requests.Response:
-        url = f"https://{self.ip}/api/{endpoint}"
-        return self._session.request(method, url, timeout=self._timeout, **kwargs)
-
     def set_value(self, datapoint_name: str, value: Any) -> bool:
         """Set a value for a specific datapoint.
 
@@ -118,36 +100,11 @@ class GiraDevice(ABC):
         datapoint = self._get_datapoint(datapoint_name)
         if datapoint is None:
             raise ValueError(f"Datapoint '{datapoint_name}' does not exist on this device")
-
-        try:
-            response = self._api_request(
-                "PUT",
-                f"values/{datapoint.uid}",
-                json={"value": value},
-            )
-            return response.status_code == 200
-        except requests.RequestException:
-            return False
+        return self._client.put_value(datapoint.uid, value)
 
     def _set_value_by_uid(self, uid: str, value: Any) -> bool:
-        """Set a value directly by UID.
-
-        Args:
-            uid: The datapoint UID.
-            value: The value to set.
-
-        Returns:
-            True if successful, False otherwise.
-        """
-        try:
-            response = self._api_request(
-                "PUT",
-                f"values/{uid}",
-                json={"value": value},
-            )
-            return response.status_code == 200
-        except requests.RequestException:
-            return False
+        """Set a value directly by UID."""
+        return self._client.put_value(uid, value)
 
     def update_values(self) -> bool:
         """Update all datapoint values from the device.
@@ -156,14 +113,10 @@ class GiraDevice(ABC):
             True if successful, False otherwise.
         """
         try:
-            response = self._api_request("GET", f"values/{self.uid}")
-            if response.status_code != 200:
-                return False
-
-            values = response.json().get("values", [])
+            values = self._client.get_values(self.uid)
             self._update_datapoint_values(values)
             return True
-        except (requests.RequestException, KeyError, ValueError):
+        except (GiraConnectionError, GiraControllerError):
             return False
 
     def _update_datapoint_values(self, values: list[dict[str, Any]]) -> None:
@@ -193,10 +146,12 @@ class KNXDimmer(GiraDevice):
                 self._datapoints[name] = DataPoint(uid=dp["uid"], name=name)
 
     @property
-    def on_off(self) -> str | None:
+    def on_off(self) -> OnOff | None:
         """Get the current on/off state."""
         dp = self._get_datapoint("OnOff")
-        return dp.value if dp else None
+        if dp is None or dp.value is None:
+            return None
+        return OnOff(dp.value)
 
     @property
     def brightness(self) -> float | None:
@@ -274,16 +229,17 @@ class Switch(GiraDevice):
 
     def _parse_datapoints(self, datapoints: list[dict[str, Any]]) -> None:
         """Parse switch-specific datapoints."""
-        if datapoints:
-            # Switch has a single mandatory OnOff datapoint
-            dp = datapoints[0]
-            self._datapoints["OnOff"] = DataPoint(uid=dp["uid"], name="OnOff")
+        for dp in datapoints:
+            if dp["name"] == "OnOff":
+                self._datapoints["OnOff"] = DataPoint(uid=dp["uid"], name="OnOff")
 
     @property
-    def on_off(self) -> str | None:
+    def on_off(self) -> OnOff | None:
         """Get the current on/off state."""
         dp = self._get_datapoint("OnOff")
-        return dp.value if dp else None
+        if dp is None or dp.value is None:
+            return None
+        return OnOff(dp.value)
 
     def toggle(self) -> bool:
         """Toggle the switch on/off.
@@ -443,10 +399,12 @@ class DimmerRGBW(GiraDevice):
                 self._datapoints[name] = DataPoint(uid=dp["uid"], name=name)
 
     @property
-    def on_off(self) -> str | None:
+    def on_off(self) -> OnOff | None:
         """Get the current on/off state."""
         dp = self._get_datapoint("OnOff")
-        return dp.value if dp else None
+        if dp is None or dp.value is None:
+            return None
+        return OnOff(dp.value)
 
     @property
     def brightness(self) -> float | None:
@@ -554,10 +512,12 @@ class DimmerWhite(GiraDevice):
                 self._datapoints[name] = DataPoint(uid=dp["uid"], name=name)
 
     @property
-    def on_off(self) -> str | None:
+    def on_off(self) -> OnOff | None:
         """Get the current on/off state."""
         dp = self._get_datapoint("OnOff")
-        return dp.value if dp else None
+        if dp is None or dp.value is None:
+            return None
+        return OnOff(dp.value)
 
     @property
     def brightness(self) -> float | None:
@@ -742,10 +702,12 @@ class RoomTemperatureSwitchable(GiraDevice):
         return dp.value if dp else None
 
     @property
-    def on_off(self) -> str | None:
+    def on_off(self) -> OnOff | None:
         """Get the current on/off state."""
         dp = self._get_datapoint("OnOff")
-        return dp.value if dp else None
+        if dp is None or dp.value is None:
+            return None
+        return OnOff(dp.value)
 
     @property
     def has_on_off(self) -> bool:
@@ -820,48 +782,56 @@ class KNXHeatingCoolingSwitchable(GiraDevice):
         return dp.value if dp else None
 
     @property
-    def is_heating(self) -> str | None:
+    def is_heating(self) -> OnOff | None:
         """Get heating active state."""
         dp = self._get_datapoint("Heating")
-        return dp.value if dp else None
+        if dp is None or dp.value is None:
+            return None
+        return OnOff(dp.value)
 
     @property
-    def is_cooling(self) -> str | None:
+    def is_cooling(self) -> OnOff | None:
         """Get cooling active state."""
         dp = self._get_datapoint("Cooling")
-        return dp.value if dp else None
+        if dp is None or dp.value is None:
+            return None
+        return OnOff(dp.value)
 
     @property
-    def on_off(self) -> str | None:
+    def on_off(self) -> OnOff | None:
         """Get the current on/off state."""
         dp = self._get_datapoint("OnOff")
-        return dp.value if dp else None
+        if dp is None or dp.value is None:
+            return None
+        return OnOff(dp.value)
 
     @property
-    def presence(self) -> str | None:
+    def presence(self) -> OnOff | None:
         """Get the presence state."""
         dp = self._get_datapoint("Presence")
-        return dp.value if dp else None
+        if dp is None or dp.value is None:
+            return None
+        return OnOff(dp.value)
 
     def set_temperature(self, temperature: float) -> bool:
         """Set the target temperature."""
         dp = self._get_datapoint("Set-Point")
         return self._set_value_by_uid(dp.uid, temperature) if dp else False
 
-    def set_mode(self, mode: int) -> bool:
+    def set_mode(self, mode: HVACMode | int) -> bool:
         """Set the operating mode."""
         dp = self._get_datapoint("Mode")
-        return self._set_value_by_uid(dp.uid, mode) if dp else False
+        return self._set_value_by_uid(dp.uid, int(mode)) if dp else False
 
     def set_presence(self, present: bool) -> bool:
         """Set presence status."""
         dp = self._get_datapoint("Presence")
         return self._set_value_by_uid(dp.uid, 1 if present else 0) if dp else False
 
-    def set_heat_cool_mode(self, heat: bool) -> bool:
-        """Set heat/cool mode (True for heat, False for cool)."""
+    def set_heat_cool_mode(self, mode: HeatCoolMode | int) -> bool:
+        """Set heat/cool mode."""
         dp = self._get_datapoint("Heat-Cool")
-        return self._set_value_by_uid(dp.uid, 1 if heat else 0) if dp else False
+        return self._set_value_by_uid(dp.uid, int(mode)) if dp else False
 
     def turn_on(self) -> bool:
         """Turn the system on."""
@@ -916,16 +886,20 @@ class KNXFanCoil(GiraDevice):
         return dp.value if dp else None
 
     @property
-    def on_off(self) -> str | None:
+    def on_off(self) -> OnOff | None:
         """Get the current on/off state."""
         dp = self._get_datapoint("OnOff")
-        return dp.value if dp else None
+        if dp is None or dp.value is None:
+            return None
+        return OnOff(dp.value)
 
     @property
-    def mode(self) -> str | None:
+    def mode(self) -> FanCoilMode | None:
         """Get the current operating mode."""
         dp = self._get_datapoint("Mode")
-        return dp.value if dp else None
+        if dp is None or dp.value is None:
+            return None
+        return FanCoilMode(int(dp.value))
 
     @property
     def fan_speed(self) -> str | None:
@@ -965,10 +939,10 @@ class KNXFanCoil(GiraDevice):
         dp = self._get_datapoint("Set-Point")
         return self._set_value_by_uid(dp.uid, temperature) if dp else False
 
-    def set_mode(self, mode: int) -> bool:
+    def set_mode(self, mode: FanCoilMode | int) -> bool:
         """Set the operating mode."""
         dp = self._get_datapoint("Mode")
-        return self._set_value_by_uid(dp.uid, mode) if dp else False
+        return self._set_value_by_uid(dp.uid, int(mode)) if dp else False
 
     def set_fan_speed(self, speed: int) -> bool:
         """Set the fan speed level."""
@@ -1010,10 +984,12 @@ class AudioWithPlaylist(GiraDevice):
                 self._datapoints[name] = DataPoint(uid=dp["uid"], name=name)
 
     @property
-    def is_playing(self) -> str | None:
+    def is_playing(self) -> OnOff | None:
         """Get play state."""
         dp = self._get_datapoint("Play")
-        return dp.value if dp else None
+        if dp is None or dp.value is None:
+            return None
+        return OnOff(dp.value)
 
     @property
     def volume(self) -> float | None:
@@ -1022,10 +998,12 @@ class AudioWithPlaylist(GiraDevice):
         return dp.value if dp else None
 
     @property
-    def is_muted(self) -> str | None:
+    def is_muted(self) -> OnOff | None:
         """Get mute state."""
         dp = self._get_datapoint("Mute")
-        return dp.value if dp else None
+        if dp is None or dp.value is None:
+            return None
+        return OnOff(dp.value)
 
     @property
     def title(self) -> str | None:
@@ -1501,20 +1479,14 @@ DEVICE_REGISTRY: dict[str, type[GiraDevice]] = {
 
 
 def create_device(
-    ip: str,
-    token: str,
+    client: GiraClient,
     config: dict[str, Any],
-    session: requests.Session | None = None,
-    timeout: float = 10.0,
 ) -> GiraDevice | None:
     """Factory function to create the appropriate device type.
 
     Args:
-        ip: IP address of the Gira X1 controller.
-        token: Authentication token for API access.
+        client: Shared GiraClient for HTTP calls.
         config: Device configuration dictionary from the X1.
-        session: Shared requests Session to use for all HTTP calls.
-        timeout: Request timeout in seconds.
 
     Returns:
         A device instance of the appropriate type, or None if unsupported.
@@ -1525,4 +1497,4 @@ def create_device(
     if device_class is None:
         return None
 
-    return device_class(ip, token, config, session, timeout)
+    return device_class(client, config)

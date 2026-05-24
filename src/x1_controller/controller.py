@@ -1,4 +1,4 @@
-"""Main API module for Gira X1 controller interaction."""
+"""GiraController — high-level orchestration for the Gira X1 smart home controller."""
 
 import json
 import logging
@@ -7,24 +7,11 @@ from typing import Any
 
 import requests
 
+from .client import GiraClient
 from .devices import GiraDevice, create_device
+from .errors import GiraControllerError
 
 logger = logging.getLogger(__name__)
-
-
-class GiraControllerError(Exception):
-    """Base exception for GiraController errors."""
-    pass
-
-
-class AuthenticationError(GiraControllerError):
-    """Raised when authentication fails."""
-    pass
-
-
-class GiraConnectionError(GiraControllerError):
-    """Raised when connection to X1 fails."""
-    pass
 
 
 class GiraController:
@@ -44,8 +31,6 @@ class GiraController:
             client_id: URN identifier for this client application.
             timeout: Request timeout in seconds.
             suppress_ssl_warnings: Suppress InsecureRequestWarning for self-signed certs.
-                The X1 ships with a self-signed certificate, so this defaults to True.
-                Pass False if you supply a trusted cert via system CA store.
 
         Raises:
             ValueError: If ip or client_id are not strings.
@@ -57,37 +42,19 @@ class GiraController:
 
         self.ip = ip
         self.client_id = client_id
-        self.timeout = timeout
-        self.token: str | None = None
         self.uid: str | None = None
         self._uid_config: dict[str, Any] | None = None
         self._devices: list[GiraDevice] = []
+        self._client = GiraClient(ip, timeout, suppress_ssl_warnings)
 
-        self._session = requests.Session()
-        self._session.verify = False
-
-        if suppress_ssl_warnings:
-            import urllib3
-            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-    def _api_request(
-        self,
-        method: str,
-        endpoint: str,
-        auth: tuple[str, str] | None = None,
-        **kwargs: Any,
-    ) -> requests.Response:
-        url = f"https://{self.ip}/{endpoint}"
-        logger.debug("%s %s", method, url)
-        return self._session.request(method, url, auth=auth, timeout=self.timeout, **kwargs)
+    @property
+    def token(self) -> str | None:
+        """The current authentication token."""
+        return self._client.token
 
     def check_availability(self) -> bool:
         """Check if the Gira X1 API is available."""
-        try:
-            response = self._api_request("GET", "api/v2")
-            return response.status_code == 200
-        except requests.RequestException:
-            return False
+        return self._client.check_availability()
 
     def register_client(self, username: str, password: str) -> str:
         """Register this client with the X1 and obtain an authentication token.
@@ -108,28 +75,7 @@ class GiraController:
             raise ValueError(f"username must be a string, got {type(username).__name__}")
         if not isinstance(password, str):
             raise ValueError(f"password must be a string, got {type(password).__name__}")
-
-        try:
-            response = self._api_request(
-                "POST",
-                "api/v2/clients",
-                auth=(username, password),
-                json={"client": self.client_id},
-            )
-
-            if response.status_code in [200, 201]:
-                self.token = response.json()["token"]
-                self._session.params = {"token": self.token}
-                return self.token
-            elif response.status_code == 401:
-                raise AuthenticationError("Invalid username or password")
-            elif response.status_code == 423:
-                raise AuthenticationError("Device is currently locked")
-            else:
-                raise AuthenticationError(f"Registration failed: {response.text}")
-
-        except requests.RequestException as e:
-            raise GiraConnectionError(f"Failed to connect to X1: {e}") from e
+        return self._client.register(self.client_id, username, password)
 
     def unregister_client(self, token: str | None = None) -> bool:
         """Unregister this client from the X1.
@@ -145,32 +91,10 @@ class GiraController:
             GiraControllerError: If unregistration fails.
             GiraConnectionError: If the device is unreachable.
         """
-        token = token or self.token
-
+        token = token or self._client.token
         if not isinstance(token, str):
             raise ValueError(f"token must be a string, got {type(token).__name__}")
-
-        try:
-            # The path identifies the client to remove; ?token= (added by session) is auth.
-            response = self._api_request("DELETE", f"api/v2/clients/{token}")
-
-            match response.status_code:
-                case 204:
-                    if token == self.token:
-                        self.token = None
-                        self._session.params = {}
-                    return True
-                case 401:
-                    raise GiraControllerError("Token not found")
-                case 423:
-                    raise GiraControllerError("Device is currently locked")
-                case 500:
-                    raise GiraControllerError("Failed to remove client")
-                case _:
-                    raise GiraControllerError(f"Unregistration failed: {response.text}")
-
-        except requests.RequestException as e:
-            raise GiraConnectionError(f"Failed to connect to X1: {e}") from e
+        return self._client.unregister(token)
 
     def register_callbacks(
         self,
@@ -190,23 +114,11 @@ class GiraController:
         Returns:
             The API response.
         """
-        data: dict[str, Any] = {
-            "serviceCallback": service_callback,
-            "valueCallback": value_callback,
-        }
-        if test_callbacks is not None:
-            data["testCallbacks"] = test_callbacks
-
-        return self._api_request(
-            "POST",
-            f"api/v2/clients/{self.token}/callbacks",
-            json=data,
-        )
+        token = self._client.token or ""
+        return self._client.register_callbacks(token, service_callback, value_callback, test_callbacks)
 
     def get_uid(self) -> str:
         """Get the unique identifier of the current configuration.
-
-        The UID changes whenever the configuration is modified.
 
         Returns:
             The configuration UID.
@@ -215,15 +127,8 @@ class GiraController:
             GiraControllerError: If the request fails.
             GiraConnectionError: If the device is unreachable.
         """
-        try:
-            response = self._api_request("GET", "api/v2/uiconfig/uid")
-            if response.status_code == 200:
-                self.uid = response.json()["uid"]
-                return self.uid
-            else:
-                raise GiraControllerError(f"Failed to get UID: {response.text}")
-        except requests.RequestException as e:
-            raise GiraConnectionError(f"Failed to connect to X1: {e}") from e
+        self.uid = self._client.get_uid()
+        return self.uid
 
     def get_config(self, filename: str | Path | None = None) -> dict[str, Any]:
         """Load the current X1 configuration.
@@ -242,20 +147,12 @@ class GiraController:
         if filename is not None and not isinstance(filename, (str, Path)):
             raise ValueError(f"filename must be a string or Path, got {type(filename).__name__}")
 
-        try:
-            response = self._api_request("GET", "api/v2/uiconfig")
-            if response.status_code != 200:
-                raise GiraControllerError(f"Failed to get config: {response.text}")
+        self._uid_config = self._client.get_config()
 
-            self._uid_config = response.json()
+        if filename is not None:
+            Path(filename).write_text(json.dumps(self._uid_config, indent=2))
 
-            if filename is not None:
-                Path(filename).write_text(json.dumps(self._uid_config, indent=2))
-
-            return self._uid_config
-
-        except requests.RequestException as e:
-            raise GiraConnectionError(f"Failed to connect to X1: {e}") from e
+        return self._uid_config
 
     def get_devices(self) -> list[GiraDevice]:
         """Get all devices from the X1 configuration.
@@ -274,7 +171,7 @@ class GiraController:
 
         devices: list[GiraDevice] = []
         for config in self._uid_config.get("functions", []):
-            device = create_device(self.ip, self.token or "", config, self._session, self.timeout)
+            device = create_device(self._client, config)
             if device is not None:
                 devices.append(device)
 

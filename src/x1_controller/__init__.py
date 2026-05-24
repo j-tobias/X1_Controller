@@ -12,57 +12,62 @@ Example usage:
     ...     print(device.display_name)
 """
 
-from .api import (
-    AuthenticationError,
-    GiraConnectionError,
-    GiraController,
-    GiraControllerError,
-)
+from .client import GiraClient
+from .controller import GiraController
 from .devices import (
-    # Base class and factory
-    GiraDevice,
-    create_device,
-    # Lighting devices
-    KNXDimmer,
-    Switch,
-    DimmerRGBW,
-    DimmerWhite,
-    # Blinds/Shutter
-    BlindWithPos,
-    # Triggers and Scenes
-    Trigger,
-    SceneSet,
-    SceneControl,
-    # Climate control
-    RoomTemperatureSwitchable,
-    KNXHeatingCoolingSwitchable,
-    KNXFanCoil,
     # Audio
     AudioWithPlaylist,
-    SonosAudio,
-    # Media
-    Camera,
-    Link,
     # Value types
     Binary,
-    DWord,
-    Integer,
-    Float,
-    String,
+    # Blinds/Shutter
+    BlindWithPos,
     Byte,
+    # Media
+    Camera,
+    DimmerRGBW,
+    DimmerWhite,
+    DWord,
+    Float,
+    # Base class and factory
+    GiraDevice,
+    Integer,
+    # Lighting devices
+    KNXDimmer,
+    KNXFanCoil,
+    KNXHeatingCoolingSwitchable,
+    Link,
     Percent,
+    # Climate control
+    RoomTemperatureSwitchable,
+    SceneControl,
+    SceneSet,
+    SonosAudio,
+    String,
+    Switch,
     Temperature,
+    # Triggers and Scenes
+    Trigger,
+    create_device,
 )
+from .enums import FanCoilMode, HeatCoolMode, HVACMode, OnOff
+from .errors import AuthenticationError, GiraConnectionError, GiraControllerError
 
 __version__ = "0.2.0"
 
 __all__ = [
+    # HTTP client
+    "GiraClient",
     # Main API
     "GiraController",
     # Exceptions
     "GiraControllerError",
     "AuthenticationError",
     "GiraConnectionError",
+    # Enums
+    "OnOff",
+    "HVACMode",
+    "HeatCoolMode",
+    "FanCoilMode",
     # Base class
     "GiraDevice",
     # Lighting devices
