@@ -24,15 +24,15 @@ It wraps the Gira IoT REST API v2 in a clean, typed interface — authentication
 
 ```bash
 # As a dependency in another project (recommended)
-uv add git+https://github.com/j-tobias/X1_Controller.git
+uv add git+https://github.com/j-tobias/Gira_X1_Controller.git
 
 # Clone and develop locally
-git clone https://github.com/j-tobias/X1_Controller.git
+git clone https://github.com/j-tobias/Gira_X1_Controller.git
 cd X1_Controller
 uv sync
 
 # Or with pip
-pip install git+https://github.com/j-tobias/X1_Controller.git
+pip install git+https://github.com/j-tobias/Gira_X1_Controller.git
 ```
 
 **Usage:**
