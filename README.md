@@ -1,183 +1,245 @@
-# Gira X1 Controller
+<p align="center">
+  <img src="resources/X1%20Controller%20Title.png" alt="X1 Controller" width="100%">
+</p>
 
-A Python API wrapper for the Gira X1 smart home controller, providing easy access to the Gira IoT REST API.
+<div align="center">
 
-## Requirements
+[Quick Start](#quick-start) · [Devices](#supported-devices) · [API Reference](#api-reference) · [Architecture](#architecture)
 
-- Python >= 3.13
-- [uv](https://github.com/astral-sh/uv) (recommended for package management)
+</div>
 
-## Installation
+---
 
-### Using uv (recommended)
+## What is X1 Controller?
+
+X1 Controller is a Python library for controlling KNX smart home devices through a **Gira X1** hub.
+
+It wraps the Gira IoT REST API v2 in a clean, typed interface — authentication, device discovery, and device control in a few lines of code. The library is split into a thin HTTP client and a higher-level controller so the transport layer is easy to mock and test independently.
+
+---
+
+## Quick Start
+
+**Install:**
 
 ```bash
-# Clone the repository
+# Using uv (recommended)
 git clone https://github.com/j-tobias/X1_Controller.git
 cd X1_Controller
-
-# Install dependencies
 uv sync
 
-# Or install in development mode
-uv sync --dev
-```
-
-### Using pip
-
-```bash
+# Or with pip
 pip install -e .
 ```
 
-## Quick Start
+**Usage:**
 
 ```python
 from x1_controller import GiraController
 
-# Initialize the controller
 controller = GiraController("192.168.1.100")
 
-# Check availability
 if controller.check_availability():
-    print("X1 is available!")
+    controller.register_client("username", "password")
 
-# Register and authenticate
-token = controller.register_client("your_username", "your_password")
-print(f"Token: {token}")
+    # Discover all devices
+    devices = controller.get_devices()
+    for device in devices:
+        print(f"{device.display_name} ({type(device).__name__})")
 
-# Get all devices
-devices = controller.get_devices()
-for device in devices:
-    print(f"Device: {device.display_name} ({device.uid})")
+    # Control a specific device
+    dimmer = controller.get_device(display_name="Living Room Light")
+    if dimmer:
+        dimmer.update_values()
+        dimmer.dim_to(75)
+        dimmer.turn_off()
 
-# Get a specific device
-dimmer = controller.get_device(display_name="Living Room Light")
-if dimmer:
-    # Update values from device
-    dimmer.update_values()
-
-    # Control the dimmer
-    dimmer.toggle()
-    dimmer.dim_to(50)  # Set to 50%
-    dimmer.turn_off()
-
-# When done
-controller.unregister_client()
+    controller.unregister_client()
 ```
+
+**Using enums for typed control:**
+
+```python
+from x1_controller import GiraController, HVACMode, HeatCoolMode, OnOff
+
+controller = GiraController("192.168.1.100")
+controller.register_client("username", "password")
+
+thermostat = controller.get_device(display_name="Living Room Thermostat")
+thermostat.update_values()
+
+if thermostat.on_off == OnOff.ON:
+    thermostat.set_mode(HVACMode.COMFORT)
+    thermostat.set_heat_cool_mode(HeatCoolMode.HEAT)
+    thermostat.set_temperature(21.5)
+```
+
+---
 
 ## Supported Devices
 
-- **KNXDimmer** - Dimmable lights with on/off, brightness, and shift control
-- **Switch** - Binary on/off switches
-- **BlindWithPos** - Motorized blinds with position control
+23 device types are supported, covering the full Gira IoT REST API v2 channel type list.
+
+### Lighting
+
+| Class | Channel Type | Key Methods |
+|---|---|---|
+| `KNXDimmer` | `KNX.Dimmer` | `turn_on()`, `turn_off()`, `toggle()`, `dim_to(percent)` |
+| `Switch` | `Switch` | `turn_on()`, `turn_off()`, `toggle()` |
+| `DimmerRGBW` | `DimmerRGBW` | `set_color(r, g, b)`, `set_brightness(percent)`, `set_white(percent)` |
+| `DimmerWhite` | `DimmerWhite` | `set_brightness(percent)`, `set_color_temperature(kelvin)` |
+
+### Blinds & Shutters
+
+| Class | Channel Type | Key Methods |
+|---|---|---|
+| `BlindWithPos` | `BlindWithPos` | `move_up()`, `move_down()`, `step_up()`, `step_down()`, `set_position(percent)`, `set_slat_position(percent)` |
+
+### Triggers & Scenes
+
+| Class | Channel Type | Key Methods |
+|---|---|---|
+| `Trigger` | `Trigger` | `press()`, `release()`, `trigger_on()`, `trigger_off()` |
+| `SceneSet` | `SceneSet` | `execute_scene(n)`, `teach_scene(n)` |
+| `SceneControl` | `SceneControl` | `execute_scene(n)` |
+
+### Climate
+
+| Class | Channel Type | Key Methods |
+|---|---|---|
+| `RoomTemperatureSwitchable` | `RoomTemperatureSwitchable` | `set_temperature(t)`, `turn_on()`, `turn_off()` |
+| `KNXHeatingCoolingSwitchable` | `KNX.HeatingCoolingSwitchable` | `set_temperature(t)`, `set_mode(HVACMode)`, `set_heat_cool_mode(HeatCoolMode)` |
+| `KNXFanCoil` | `KNX.FanCoil` | `set_temperature(t)`, `set_mode(FanCoilMode)`, `set_fan_speed(n)` |
+
+### Audio
+
+| Class | Channel Type | Key Methods |
+|---|---|---|
+| `AudioWithPlaylist` | `AudioWithPlaylist` | `play()`, `pause()`, `set_volume(percent)`, `next_track()`, `select_playlist(n)` |
+| `SonosAudio` | `Sonos.Audio` | Extends `AudioWithPlaylist` — adds `shift_volume(delta)`, `zone_name`, `cover_url` |
+
+### Media
+
+| Class | Channel Type | Key Methods |
+|---|---|---|
+| `Camera` | `Camera` | `activate()`, `deactivate()` |
+| `Link` | `Link` | `activate()`, `deactivate()` |
+
+### Value Types
+
+Generic single-value devices for raw data access.
+
+| Class | Value |
+|---|---|
+| `Binary` | `0` or `1` |
+| `Byte` | `0–255` |
+| `DWord` | `0–4 294 967 295` |
+| `Integer` | Signed integer |
+| `Float` | Decimal |
+| `String` | Text |
+| `Percent` | `0–100` |
+| `Temperature` | Decimal (°C) |
+
+All value type devices expose `.value` and `.set(value)`.
+
+---
 
 ## API Reference
 
-### GiraController
+### `GiraController`
 
-Main controller class for interacting with the X1.
-
-```python
-controller = GiraController(ip="192.168.1.100", client_id="de.myapp.client")
-```
-
-#### Methods
-
-- `check_availability()` - Check if the X1 API is reachable
-- `register_client(username, password)` - Authenticate and get a token
-- `unregister_client(token=None)` - Deregister the client
-- `get_uid()` - Get configuration unique identifier
-- `get_config(filename=None)` - Get X1 configuration (optionally save to file)
-- `get_devices()` - Get all devices as objects
-- `get_device(display_name=None, uid=None)` - Get a specific device
-
-### Device Classes
-
-All devices inherit from `GiraDevice` and share common methods:
-
-- `update_values()` - Fetch current values from device
-- `set_value(datapoint_name, value)` - Set a datapoint value
-
-#### KNXDimmer
+The main entry point. Handles authentication, configuration loading, and device management.
 
 ```python
-dimmer.toggle()           # Toggle on/off
-dimmer.turn_on()          # Turn on
-dimmer.turn_off()         # Turn off
-dimmer.dim_to(percent)    # Set brightness (0-100)
-
-# Properties
-dimmer.on_off             # Current on/off state
-dimmer.brightness         # Current brightness
-dimmer.has_brightness     # Whether brightness control is available
+controller = GiraController(
+    ip="192.168.1.100",
+    client_id="de.myapp.client",   # optional, default provided
+    timeout=10.0,                   # optional
+    suppress_ssl_warnings=True,     # optional, X1 ships with self-signed cert
+)
 ```
 
-#### Switch
+| Method | Returns | Description |
+|---|---|---|
+| `check_availability()` | `bool` | Ping the API |
+| `register_client(username, password)` | `str` | Authenticate, returns token |
+| `unregister_client(token=None)` | `bool` | Deregister client |
+| `get_config(filename=None)` | `dict` | Load X1 configuration, optionally save to file |
+| `get_uid()` | `str` | Get configuration UID (changes on config edits) |
+| `get_devices()` | `list[GiraDevice]` | Instantiate all devices from configuration |
+| `get_device(display_name=None, uid=None)` | `GiraDevice \| None` | Look up a single device |
+| `register_callbacks(service_cb, value_cb)` | `Response` | Register event callback URLs |
+
+### `GiraClient`
+
+The low-level HTTP transport. Available for direct use or mocking in tests.
 
 ```python
-switch.toggle()           # Toggle on/off
-switch.turn_on()          # Turn on
-switch.turn_off()         # Turn off
+from x1_controller import GiraClient
 
-# Properties
-switch.on_off             # Current on/off state
+client = GiraClient(ip="192.168.1.100", timeout=10.0)
+token = client.register("de.myapp.client", "username", "password")
+values = client.get_values("some-function-uid")
+client.put_value("some-datapoint-uid", 1)
 ```
 
-#### BlindWithPos
+### `GiraDevice` (base class)
 
-```python
-blind.move_up()           # Move blind up
-blind.move_down()         # Move blind down
-blind.step_up()           # Small step up
-blind.step_down()         # Small step down
-blind.set_position(50)    # Set position (0-100)
-blind.set_slat_position(30)  # Set slat position (0-100)
+All device classes share these methods:
 
-# Properties
-blind.position            # Current position
-blind.slat_position       # Current slat position
-blind.has_position        # Whether position control is available
-blind.has_slat_position   # Whether slat control is available
+| Method | Description |
+|---|---|
+| `update_values()` | Fetch current datapoint values from the device |
+| `set_value(datapoint_name, value)` | Set a named datapoint directly |
+
+### Enums
+
+| Enum | Values | Used by |
+|---|---|---|
+| `OnOff` | `ON`, `OFF` | All on/off properties (`device.on_off`, `is_playing`, etc.) |
+| `HVACMode` | `AUTO`, `COMFORT`, `STANDBY`, `ECONOMY`, `BUILDING_PROTECTION` | `KNXHeatingCoolingSwitchable.set_mode()` |
+| `HeatCoolMode` | `HEAT`, `COOL` | `KNXHeatingCoolingSwitchable.set_heat_cool_mode()` |
+| `FanCoilMode` | `AUTO`, `HEATING`, `COOLING`, `FAN`, `DRY` | `KNXFanCoil.set_mode()` |
+
+---
+
+## Architecture
+
 ```
+┌──────────────────────┐     ┌─────────────────┐     ┌──────────────────────┐
+│   GiraController     │────>│   GiraClient     │────>│  Gira X1 REST API    │
+│   controller.py      │<────│   client.py      │<────│  (HTTPS / KNX)       │
+└──────────┬───────────┘     └─────────────────┘     └──────────────────────┘
+           │
+           ▼
+┌──────────────────────────────────────────────────────┐
+│                  GiraDevice subclasses                │
+│   KNXDimmer · Switch · BlindWithPos · KNXFanCoil ...  │
+│                     devices.py                        │
+└──────────────────────────────────────────────────────┘
+```
+
+| Module | Responsibility |
+|---|---|
+| `client.py` | `GiraClient` — owns the `requests.Session`, SSL config, token lifecycle, all raw endpoint calls |
+| `controller.py` | `GiraController` — delegates HTTP to `GiraClient`, caches config and devices, user-facing API |
+| `devices.py` | 23 device classes + factory — device logic only, calls `client.put_value()` / `client.get_values()` |
+| `enums.py` | Typed states: `OnOff`, `HVACMode`, `HeatCoolMode`, `FanCoilMode` |
+| `errors.py` | `GiraControllerError`, `AuthenticationError`, `GiraConnectionError` |
+
+---
 
 ## Development
 
-### Setup development environment
-
 ```bash
 uv sync --dev
+uv run ruff check .        # lint
+uv run ruff format .       # format
+uv run mypy src/           # type check
+uv run pytest              # tests
 ```
 
-### Run linting
-
-```bash
-uv run ruff check .
-uv run ruff format .
-```
-
-### Run type checking
-
-```bash
-uv run mypy src/
-```
-
-### Run tests
-
-```bash
-uv run pytest
-```
-
-## Migration from Old API
-
-If you're updating from the old API, here are the key changes:
-
-| Old | New |
-|-----|-----|
-| `from X1API import GiraControl` | `from x1_controller import GiraController` |
-| `gira.availability_check()` | `controller.check_availability()` |
-| `gira.get_uid_config()` | `controller.get_config()` |
-| `device.displayName` | `device.display_name` |
-| `dimmer.dimm_to(50)` | `dimmer.dim_to(50)` |
+---
 
 ## License
 
