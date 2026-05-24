@@ -14,7 +14,7 @@ Example usage:
 
 from .api import (
     AuthenticationError,
-    ConnectionError,
+    GiraConnectionError,
     GiraController,
     GiraControllerError,
 )
@@ -62,7 +62,7 @@ __all__ = [
     # Exceptions
     "GiraControllerError",
     "AuthenticationError",
-    "ConnectionError",
+    "GiraConnectionError",
     # Base class
     "GiraDevice",
     # Lighting devices

@@ -5,13 +5,10 @@ that can be controlled through the Gira X1 API.
 """
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 import requests
-
-# Suppress SSL warnings for self-signed certificates
-requests.packages.urllib3.disable_warnings()
 
 
 @dataclass
@@ -24,21 +21,26 @@ class DataPoint:
 
 
 class GiraDevice(ABC):
-    """Base class for all Gira X1 devices.
-
-    This abstract base class provides common functionality for all device types,
-    including API communication and value management.
-    """
+    """Base class for all Gira X1 devices."""
 
     channel_type: str = ""
 
-    def __init__(self, ip: str, token: str, config: dict[str, Any]) -> None:
+    def __init__(
+        self,
+        ip: str,
+        token: str,
+        config: dict[str, Any],
+        session: requests.Session | None = None,
+        timeout: float = 10.0,
+    ) -> None:
         """Initialize a Gira device.
 
         Args:
             ip: IP address of the Gira X1 controller.
             token: Authentication token for API access.
             config: Device configuration dictionary from the X1.
+            session: Shared requests Session (inherits verify and token params).
+            timeout: Request timeout in seconds.
         """
         self.ip = ip
         self.token = token
@@ -46,8 +48,19 @@ class GiraDevice(ABC):
         self.function_type = config["functionType"]
         self.uid = config["uid"]
         self._datapoints: dict[str, DataPoint] = {}
+        self._timeout = timeout
+
+        if session is not None:
+            self._session = session
+        else:
+            self._session = requests.Session()
+            self._session.verify = False
+            self._session.params = {"token": token}
 
         self._parse_datapoints(config.get("dataPoints", []))
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}(uid={self.uid!r}, name={self.display_name!r})"
 
     @abstractmethod
     def _parse_datapoints(self, datapoints: list[dict[str, Any]]) -> None:
@@ -86,21 +99,8 @@ class GiraDevice(ABC):
         endpoint: str,
         **kwargs: Any,
     ) -> requests.Response:
-        """Make an API request to the Gira X1.
-
-        Args:
-            method: HTTP method (GET, PUT, POST, DELETE).
-            endpoint: API endpoint path.
-            **kwargs: Additional arguments passed to requests.
-
-        Returns:
-            The response object.
-
-        Raises:
-            requests.RequestException: If the request fails.
-        """
-        url = f"https://{self.ip}/api/{endpoint}?token={self.token}"
-        return requests.request(method, url, verify=False, **kwargs)
+        url = f"https://{self.ip}/api/{endpoint}"
+        return self._session.request(method, url, timeout=self._timeout, **kwargs)
 
     def set_value(self, datapoint_name: str, value: Any) -> bool:
         """Set a value for a specific datapoint.
@@ -1500,13 +1500,21 @@ DEVICE_REGISTRY: dict[str, type[GiraDevice]] = {
 }
 
 
-def create_device(ip: str, token: str, config: dict[str, Any]) -> GiraDevice | None:
+def create_device(
+    ip: str,
+    token: str,
+    config: dict[str, Any],
+    session: requests.Session | None = None,
+    timeout: float = 10.0,
+) -> GiraDevice | None:
     """Factory function to create the appropriate device type.
 
     Args:
         ip: IP address of the Gira X1 controller.
         token: Authentication token for API access.
         config: Device configuration dictionary from the X1.
+        session: Shared requests Session to use for all HTTP calls.
+        timeout: Request timeout in seconds.
 
     Returns:
         A device instance of the appropriate type, or None if unsupported.
@@ -1517,4 +1525,4 @@ def create_device(ip: str, token: str, config: dict[str, Any]) -> GiraDevice | N
     if device_class is None:
         return None
 
-    return device_class(ip, token, config)
+    return device_class(ip, token, config, session, timeout)

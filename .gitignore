@@ -1,6 +1,7 @@
 # Test files
 test.py
 test.ipynb
+tests/
 
 # Config files with sensitive data
 uid_config.json
