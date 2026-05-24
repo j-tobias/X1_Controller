@@ -38,7 +38,6 @@ env/
 
 # uv
 .uv/
-uv.lock
 
 # Jupyter
 .ipynb_checkpoints/
@@ -64,4 +63,3 @@ htmlcov/
 .coverage.*
 coverage.xml
 *.cover
-Hands-on Intro.ipynb
